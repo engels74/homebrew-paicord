@@ -1,8 +1,8 @@
 # This cask is auto-updated by the update-cask workflow.
 # Do not edit the version or sha256 lines manually.
 cask "paicord" do
-  version "PLACEHOLDER"
-  sha256 "PLACEHOLDER"
+  version "2026-03-18-f6d294d"
+  sha256 "2c5e92b1ea619fce6ecdc22ddb1a65fdb3aa589703b29794afd3646ae43c52a5"
 
   url "https://github.com/engels74/homebrew-paicord/releases/download/latest/Paicord.dmg"
   name "Paicord"
