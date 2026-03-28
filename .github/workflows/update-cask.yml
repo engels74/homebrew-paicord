@@ -1,0 +1,178 @@
+name: Update Cask
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-cask
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+
+      - name: Get latest upstream build info
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Get the latest successful workflow run for build.yml on main
+          RUN_JSON=$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/llsc12/Paicord/actions/workflows/build.yml/runs?branch=main&status=success&per_page=1")
+
+          TOTAL=$(echo "$RUN_JSON" | jq '.total_count')
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "No successful workflow runs found."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          HEAD_SHA=$(echo "$RUN_JSON" | jq -r '.workflow_runs[0].head_sha')
+          RUN_ID=$(echo "$RUN_JSON" | jq -r '.workflow_runs[0].id')
+
+          if [ -z "$HEAD_SHA" ] || [ "$HEAD_SHA" = "null" ]; then
+            echo "Could not determine head_sha from workflow run."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SHORT_SHA="${HEAD_SHA:0:7}"
+
+          # Get the commit date for this SHA
+          COMMIT_JSON=$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/llsc12/Paicord/commits/${HEAD_SHA}")
+
+          COMMIT_DATE=$(echo "$COMMIT_JSON" | jq -r '.commit.author.date' | cut -dT -f1)
+
+          if [ -z "$COMMIT_DATE" ] || [ "$COMMIT_DATE" = "null" ]; then
+            echo "Could not determine commit date."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          NEW_VERSION="${COMMIT_DATE}-${SHORT_SHA}"
+
+          echo "head_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          echo "Upstream version: ${NEW_VERSION} (SHA: ${HEAD_SHA}, Run: ${RUN_ID})"
+
+      - name: Check if update is needed
+        id: check
+        if: steps.upstream.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+
+          NEW_VERSION="${{ steps.upstream.outputs.new_version }}"
+
+          # Extract current version from cask file
+          CURRENT_VERSION=$(grep -E '^\s*version\s+"' Casks/paicord.rb | sed 's/.*"\(.*\)".*/\1/')
+
+          echo "Current cask version: ${CURRENT_VERSION}"
+          echo "New upstream version: ${NEW_VERSION}"
+
+          if [ "$CURRENT_VERSION" = "$NEW_VERSION" ]; then
+            echo "Cask is already up to date."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Update needed."
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download DMG from nightly.link
+        if: steps.upstream.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+
+          echo "Downloading from nightly.link..."
+          curl -fsSL -o Paicord-macOS.zip \
+            "https://nightly.link/llsc12/Paicord/workflows/build/main/Paicord-macOS.zip"
+
+          echo "Extracting DMG from zip..."
+          unzip -o Paicord-macOS.zip
+
+          if [ ! -f Paicord.dmg ]; then
+            echo "ERROR: Paicord.dmg not found after extraction." >&2
+            ls -la
+            exit 1
+          fi
+
+          echo "DMG downloaded and extracted successfully."
+          ls -la Paicord.dmg
+
+      - name: Compute SHA256
+        id: sha
+        if: steps.upstream.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+
+          SHA256=$(sha256sum Paicord.dmg | awk '{print $1}')
+          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
+          echo "SHA256: ${SHA256}"
+
+      - name: Upload DMG to tap release
+        if: steps.upstream.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Delete existing release if any — ignore errors on first run
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+
+          # Brief pause for GitHub to process tag deletion
+          sleep 2
+
+          # Create new release with the DMG
+          gh release create latest Paicord.dmg \
+            --title "Paicord (latest)" \
+            --notes "Automatically updated by the update-cask workflow. Upstream commit: ${{ steps.upstream.outputs.head_sha }}" \
+            --latest=false
+
+          echo "Release created with tag: latest"
+
+      - name: Update cask file
+        if: steps.upstream.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+
+          NEW_VERSION="${{ steps.upstream.outputs.new_version }}"
+          NEW_SHA256="${{ steps.sha.outputs.sha256 }}"
+
+          echo "Updating cask to version ${NEW_VERSION} with SHA256 ${NEW_SHA256}"
+
+          sed -i "s/^\(  version \)\".*\"/\1\"${NEW_VERSION}\"/" Casks/paicord.rb
+          sed -i "s/^\(  sha256 \)\".*\"/\1\"${NEW_SHA256}\"/" Casks/paicord.rb
+
+          echo "Updated cask file:"
+          cat Casks/paicord.rb
+
+      - name: Commit and push
+        if: steps.upstream.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
+        run: |
+          set -euo pipefail
+
+          NEW_VERSION="${{ steps.upstream.outputs.new_version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add Casks/paicord.rb
+          git commit -m "Update Paicord to ${NEW_VERSION}"
+          git push
