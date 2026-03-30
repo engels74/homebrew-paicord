@@ -189,9 +189,7 @@ jobs:
           \`\`\`bash
           brew tap engels74/paicord
           brew install --cask paicord
-          \`\`\`
-
-"
+          \`\`\`"
 
           # Remove existing release (if any) — ignore errors on first run
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
