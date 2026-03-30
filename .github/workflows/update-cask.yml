@@ -191,8 +191,7 @@ jobs:
           brew install --cask paicord
           \`\`\`
 
-          > [!NOTE]
-          > This release is managed by the [update-cask workflow](https://github.com/engels74/homebrew-paicord/actions/workflows/update-cask.yml). Do not edit manually."
+"
 
           # Remove existing release (if any) — ignore errors on first run
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
@@ -279,7 +278,7 @@ jobs:
             echo ""
             echo "---"
             echo ""
-            echo "_Scanned automatically by the [update-cask workflow](https://github.com/engels74/homebrew-paicord/actions/workflows/update-cask.yml)._"
+            echo "_Scanned and released automatically by the [update-cask workflow](https://github.com/engels74/homebrew-paicord/actions/workflows/update-cask.yml)._"
           } | tee virustotal-results.md >> $GITHUB_STEP_SUMMARY
 
       - name: Append VirusTotal results to release notes
