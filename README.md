@@ -43,6 +43,10 @@ A [GitHub Actions workflow](.github/workflows/update-cask.yml) runs every 6 hour
 
 Versions follow the format `YYYY-MM-DD-SHORTSHA`, reflecting the upstream commit date and hash.
 
+## Support Upstream
+
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-llsc12-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/llsc12)
+
 ---
 
-This is an unofficial community-maintained tap, not affiliated with the Paicord developer(s). Licensed under [AGPL-3.0](LICENSE).
+This is an unofficial community-maintained tap, not affiliated with the Paicord developer(s). The upstream app is licensed under [GPL-3.0](https://github.com/llsc12/Paicord/blob/main/LICENSE); this tap repository is licensed under [AGPL-3.0](LICENSE).

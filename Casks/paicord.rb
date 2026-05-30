@@ -6,12 +6,22 @@ cask "paicord" do
 
   url "https://github.com/engels74/homebrew-paicord/releases/download/latest/Paicord.dmg"
   name "Paicord"
-  desc "Native Discord client for macOS, written in Swift"
+  desc "Native Discord client, written in Swift"
   homepage "https://github.com/llsc12/Paicord"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Paicord.app"
+
+  postflight do
+    app_path = File.join(appdir, "Paicord.app")
+
+    ohai "Removing quarantine attribute from #{app_path}"
+    system_command "/usr/bin/xattr",
+                   args:         ["-r", "-d", "com.apple.quarantine", app_path],
+                   sudo:         false,
+                   must_succeed: false
+  end
 
   zap trash: [
     "~/Library/Application Support/com.llsc12.Paicord",
