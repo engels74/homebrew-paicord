@@ -1,5 +1,10 @@
 # homebrew-paicord
 
+<p>
+  <strong>Support upstream:</strong><br>
+  <a href="https://github.com/sponsors/llsc12"><img alt="GitHub Sponsors: llsc12" src="https://img.shields.io/badge/GitHub%20Sponsors-llsc12-ea4aaa?logo=githubsponsors&amp;logoColor=white"></a>
+</p>
+
 Homebrew tap for [Paicord](https://github.com/llsc12/Paicord) — a native Discord client for macOS built with Swift and SwiftUI.
 
 > [!WARNING]
@@ -42,10 +47,6 @@ brew uninstall --cask --zap paicord
 A [GitHub Actions workflow](.github/workflows/update-cask.yml) runs every 6 hours to check for new upstream builds. When a new build is detected, the workflow downloads the `.dmg`, computes its SHA256 checksum, re-hosts it on this repository's [releases](https://github.com/engels74/homebrew-paicord/releases), and updates the cask automatically.
 
 Versions follow the format `YYYY-MM-DD-SHORTSHA`, reflecting the upstream commit date and hash.
-
-## Support Upstream
-
-[![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-llsc12-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/llsc12)
 
 ---
 
