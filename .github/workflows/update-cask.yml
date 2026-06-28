@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
 
           # Get the latest successful workflow run for build.yml on main
-          RUN_JSON=$(curl -fsSL \
+          RUN_JSON=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 120 \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/llsc12/Paicord/actions/workflows/build.yml/runs?branch=main&status=success&per_page=1")
@@ -53,7 +53,7 @@ jobs:
           SHORT_SHA="${HEAD_SHA:0:7}"
 
           # Get the commit date for this SHA
-          COMMIT_JSON=$(curl -fsSL \
+          COMMIT_JSON=$(curl -fsSL --retry 5 --retry-all-errors --retry-max-time 120 \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/llsc12/Paicord/commits/${HEAD_SHA}")
@@ -108,7 +108,7 @@ jobs:
           set -euo pipefail
 
           echo "Downloading from nightly.link..."
-          curl -fsSL -o Paicord-macOS.zip \
+          curl -fsSL --retry 5 --retry-all-errors --retry-max-time 300 -o Paicord-macOS.zip \
             "https://nightly.link/llsc12/Paicord/workflows/build/main/Paicord-macOS.zip"
 
           echo "Extracting DMG from zip..."
@@ -141,10 +141,8 @@ jobs:
           path: Paicord.dmg
           retention-days: 1
 
-      - name: Upload DMG to rolling release
+      - name: Prepare rolling release notes
         if: steps.upstream.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -191,19 +189,35 @@ jobs:
           brew install --cask paicord
           \`\`\`"
 
-          # Remove existing release (if any) — ignore errors on first run
-          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          # Persist the composed release notes for the upload step
+          printf '%s' "$RELEASE_BODY" > "${RUNNER_TEMP}/release-notes.md"
 
-          # Brief pause for GitHub to process tag deletion
-          sleep 2
+      - name: Upload DMG to rolling release
+        if: steps.upstream.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_VERSION: ${{ steps.upstream.outputs.new_version }}
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 4
+          retry_wait_seconds: 20
+          command: |
+            set -euo pipefail
 
-          # Create the rolling release
-          gh release create latest Paicord.dmg \
-            --title "Paicord (latest)" \
-            --notes "$RELEASE_BODY" \
-            --latest=false
+            # Remove existing release (if any) — ignore errors on first run
+            gh release delete latest --yes --cleanup-tag 2>/dev/null || true
 
-          echo "Rolling release updated for version: ${NEW_VERSION}"
+            # Brief pause for GitHub to process tag deletion
+            sleep 2
+
+            # Create the rolling release
+            gh release create latest Paicord.dmg \
+              --title "Paicord (latest)" \
+              --notes-file "${RUNNER_TEMP}/release-notes.md" \
+              --latest=false
+
+            echo "Rolling release updated for version: ${NEW_VERSION}"
 
       - name: Update cask file
         if: steps.upstream.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
@@ -283,19 +297,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          # Fetch current release body
-          gh release view latest --json body --jq '.body' > current-body.md
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 5
+          max_attempts: 4
+          retry_wait_seconds: 20
+          command: |
+            set -euo pipefail
 
-          # Combine current body with VirusTotal results
-          {
-            cat current-body.md
-            echo ""
-            echo "---"
-            echo ""
-            cat virustotal-results.md
-          } > updated-body.md
+            # Fetch current release body
+            gh release view latest --json body --jq '.body' > current-body.md
 
-          # Update the release
-          gh release edit latest --notes-file updated-body.md
-          echo "VirusTotal results appended to release notes"
+            # Combine current body with VirusTotal results
+            {
+              cat current-body.md
+              echo ""
+              echo "---"
+              echo ""
+              cat virustotal-results.md
+            } > updated-body.md
+
+            # Update the release
+            gh release edit latest --notes-file updated-body.md
+            echo "VirusTotal results appended to release notes"
