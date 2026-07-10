@@ -1,8 +1,8 @@
 # This cask is auto-updated by the update-cask workflow.
 # Do not edit the version or sha256 lines manually.
 cask "paicord" do
-  version "2026-07-08-6ce1bc4"
-  sha256 "d41485e371315a3e2dd0d415683e4c10cb9da59440e771dfa6ae9128557e99d3"
+  version "2026-07-10-7cfbd2b"
+  sha256 "d3ec1e9f4cf4908197821fcf70b13a5af22b506971d0dc93b154e601ea559c61"
 
   url "https://github.com/engels74/homebrew-paicord/releases/download/latest/Paicord.dmg"
   name "Paicord"
